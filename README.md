@@ -13,7 +13,16 @@ Since Luma3DS v8.0, Luma3DS has its own in-game menu, triggerable by `L+Down+Sel
 
 ## Compiling
 
-First you need to clone the repository with: `git clone https://github.com/AuroraWright/Luma3DS.git`  
+First you need to clone the repository: To clone the original use `git clone https://github.com/AuroraWright/Luma3DS.git` and to clone this source use: `git clone https://github.com/ToshieCosed/Luma3DS_RosalinaSmileHook` (I don't know if that will work or not)
+Little disclaimer here:
+I have not modified the original license files or credit and all contents included in this repository have the same license applied to them 
+that all of the original source's contents did.
+I don't take credit for the sources this is built on, it is just a derivative work in progress built using those sources.
+Please give credit where it is due to the original creators of these sources, the files I've commited will simply be for
+plugging into Rosalina as a hook and reading/writing to SmileBasic's Ram as well as sending socket out and taking socket in, and doing
+memory searches on SmileBasic's memory locations for unknown linear ram to map it for SmileNet 2.0's network stack.
+Enjoy~
+
 To compile, you'll need [armips](https://github.com/Kingcom/armips) and a build of a recent commit of [makerom](https://github.com/profi200/Project_CTR) added to your PATH. You'll also need to install [firmtool](https://github.com/TuxSH/firmtool), its README contains installation instructions.
 For now, you'll also need to update your [libctru](https://github.com/smealum/ctrulib) install, building from the latest commit.  
 For your convenience, here are [Windows](http://www91.zippyshare.com/v/ePGpjk9r/file.html) and [Linux](https://mega.nz/#!uQ1T1IAD!Q91O0e12LXKiaXh_YjXD3D5m8_W3FuMI-hEa6KVMRDQ) builds of armips (thanks to who compiled them!) and [makerom](https://github.com/Steveice10/buildtools/tree/master/3ds) (thanks @Steveice10!).   
