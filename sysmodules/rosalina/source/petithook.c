@@ -33,11 +33,10 @@
 #include "memory.h"
 #include "draw.h"
 #include "menu.h"
-
+#include "ifile.h"
 
 bool petithook_enabled = false;
 Handle petithookStartedEvent;
-
 
 static MyThread petithookthread;
 static u8 ALIGN(8) petithookthreadStack[0x4000];
@@ -148,6 +147,7 @@ void irCodePatchFunc(void);
 
 Result PetitMemHook_DoOrUndoPatches(void)
 {
+    #define TRY(expr) if(R_FAILED(res = (expr))) goto end;
     s64 startAddress, textTotalRoundedSize, rodataTotalRoundedSize, dataTotalRoundedSize;
     u32 totalSize;
     Handle processHandle;
@@ -178,28 +178,127 @@ Result PetitMemHook_DoOrUndoPatches(void)
         0x000000FF,
     };
     
+    
+ 
+    
         //Copy the first 20 32 bit values from SmileBasic ram into my_array!
     //memcpy(my_array, startAddress, sizeof(my_array-1));
     u32 value_ = my_array[0];
     
+    
+    //put the first 8000 bytes of smilebasic's ram into buffer
+    u32 buffer[100] = {0};
+    for (int i=0;i<99;i++){
+      value_ = ((u32*)startAddress)[i];
+      buffer[i] = value_;
+    
+                        }
+    int memoffset = 0;
     int memindex = 0;
     bool need_update = false;
     //0x10002 to 0x10007 are 
+    
+    FS_Archive archive;
+    FS_ArchiveID archiveId;
+    s64 out;
+  
+    
+    
+    //Trying to write file shit
+    u64 total;
+    IFile file;
+    Result res;
+
+    u32 filenum;
+    char filename[64];
+    bool isSdMode;
+
+    if(R_FAILED(svcGetSystemInfo(&out, 0x10000, 0x203))) svcBreak(USERBREAK_ASSERT);
+    isSdMode = (bool)out;
+
+    archiveId = isSdMode ? ARCHIVE_SDMC : ARCHIVE_NAND_RW;
+    Draw_Lock();
+    Draw_RestoreFramebuffer();
+
+    svcFlushEntireDataCache();
+
+    res = FSUSER_OpenArchive(&archive, archiveId, fsMakePath(PATH_EMPTY, ""));
+    if(R_SUCCEEDED(res))
+    {
+        res = FSUSER_CreateDirectory(archive, fsMakePath(PATH_ASCII, "/smilehook/memdumps"), 0);
+        if( (u32)res == 0xC82044BE) // directory already exists
+            res = 0;
+        FSUSER_CloseArchive(archive);
+    }
+    
+    
+    
+    
+
+
+ Result res1, res2, res3;
+        IFile fileR;
+            
+            //I think that it's putting the string into the filename instead of the screen?
+        sprintf(filename, "/smilehook/memdumps/memdump.bin");
+        res1 = IFile_Open(&fileR, archiveId, fsMakePath(PATH_EMPTY, ""), fsMakePath(PATH_ASCII, filename), FS_OPEN_READ);
+        IFile_Close(&fileR);
+
+        //sprintf(filename, "/luma/screenshots/bot_%04u.bmp", filenum);
+        //res2 = IFile_Open(&fileR, archiveId, fsMakePath(PATH_EMPTY, ""), fsMakePath(PATH_ASCII, filename), FS_OPEN_READ);
+        //IFile_Close(&fileR);
+
+        //sprintf(filename, "/luma/screenshots/top_right_%04u.bmp", filenum);
+       // res3 = IFile_Open(&fileR, archiveId, fsMakePath(PATH_EMPTY, ""), fsMakePath(PATH_ASCII, filename), FS_OPEN_READ);
+       // IFile_Close(&fileR);
+    total = 100; //Try to write 4 MB of ram to dump file
+    TRY(IFile_Open(&file, archiveId, fsMakePath(PATH_EMPTY, ""), fsMakePath(PATH_ASCII, filename), FS_OPEN_CREATE | FS_OPEN_WRITE));
+    //TRY(IFile_Write(&file, &total, framebufferCache, 3 * 320 * 120, 0));
+    
+    
+    
+    for (int write=0;write<8000;write++){
+    
+    for (int i=0;i<99;i++){
+      value_ = ((u32*)startAddress)[i+memoffset];
+      buffer[i] = value_;
+    
+                        }
+                        memoffset=memoffset+100;
+    
+    
+    TRY(IFile_Write(&file, &total, buffer, total, 0));
+                                        }
+    
+    
+    
+    TRY(IFile_Close(&file));
+    
+    
+     end:
+    IFile_Close(&file);
+    
     do
-    {   Draw_Lock();
-       u32 buttons = HID_PAD;
+    {   
+        Draw_Lock();
+        Draw_FlushFramebuffer();
+        Draw_Unlock();
+    u32 buttons = HID_PAD;
        
         if (buttons & BUTTON_DOWN){
                memindex = memindex + 1;
                         }
            
-             if (buttons & BUTTON_A){((u32*)startAddress)[memindex+10] = 0x000000FF;
-                }
+             //if (buttons & BUTTON_A){((u32*)startAddress)[memindex+10] = 0x000000FF;
+                //}
+    Draw_Lock();
+       
+       
         //Try to display that ram
-        for ( int a=0; a<39; a++ ) {
+        for ( int a=0; a<24; a++ ) {
             value_ = ((u32*)startAddress)[a+ memindex];
-             if ( a == memindex+10)  { Draw_DrawFormattedString(10, ((a-1)*10), COLOR_GREEN, "                                                         ");}
-             if ( a == memindex+10)  { Draw_DrawFormattedString(10, ((a-1)*10), COLOR_GREEN, "Address (%p) == (0x%08x).", a+memindex, value_);}
+             if ( a == 12)  { Draw_DrawFormattedString(10, ((a-1)*10), COLOR_GREEN, "                                                         ");}
+             if ( a == 12)  { Draw_DrawFormattedString(10, ((a-1)*10), COLOR_GREEN, "Address (%p) == (0x%08x).", a+memindex, value_);}
              else{
              Draw_DrawFormattedString(10, ((a-1)*10), COLOR_WHITE, "                                                         ");
              Draw_DrawFormattedString(10, ((a-1)*10), COLOR_WHITE, "Address (%p) == (0x%08x).", a+memindex, value_);
@@ -208,7 +307,19 @@ Result PetitMemHook_DoOrUndoPatches(void)
             }
              
 
-        Draw_FlushFramebuffer();
+        //Draw_FlushFramebuffer();
+       
+        
+        do{
+            //nothing
+            Draw_FlushFramebuffer();
+        }while (!waitInput() & BUTTON_DOWN);
+        ((u32*)startAddress)[memindex+12] = 0x000000FF;
+        
+       
+       
+        //Draw_ClearFramebuffer();
+        
         Draw_Unlock();
     }
     while(!(waitInput() & BUTTON_B) && !terminationRequest);
@@ -403,5 +514,7 @@ Result PetitMemHook_DoOrUndoPatches(void)
     //}
     //svcCloseHandle(processHandle);
 
+   
+    
     return res;
 }
