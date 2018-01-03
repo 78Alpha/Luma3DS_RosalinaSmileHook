@@ -27,7 +27,6 @@
 #include <3ds.h>
 #include "menus/miscellaneous.h"
 #include "input_redirection.h"
-#include "petitcommemhook.h"
 #include "mcu.h"
 #include "memory.h"
 #include "draw.h"
@@ -36,6 +35,7 @@
 #include "utils.h" // for makeARMBranch
 #include "minisoc.h"
 #include "ifile.h"
+#include "petithook.h"
 
 Menu miscellaneousMenu = {
     "Miscellaneous options menu",
@@ -45,9 +45,77 @@ Menu miscellaneousMenu = {
         { "Change the menu combo", METHOD, .method = MiscellaneousMenu_ChangeMenuCombo },
         { "Start InputRedirection", METHOD, .method = &MiscellaneousMenu_InputRedirection },
         { "Save settings", METHOD, .method = &MiscellaneousMenu_SaveSettings },
-        {"SmileBasic Hookin", METHOD, .method = &SmileBasicHook },
+        {"New SmileHook RamDumper", METHOD, .method = &SmileHook },
     }
 };
+
+void SmileHook(void)
+{
+     //#define TRY(expr) if(R_FAILED(res = (expr))) goto end;
+    
+   
+    static MyThread *smileNetThread = NULL;
+     Result res = svcCreateEvent(&smileNetThreadStartedEvent, RESET_STICKY);
+                    if( R_SUCCEEDED(res) )
+                    {
+                        smileNetThread = smileNetCreateThread();
+                        res = svcWaitSynchronization(smileNetThreadStartedEvent, 10 * 1000 * 1000 * 1000LL);
+                        if(res == 0)
+                            res = (Result)smileNetStartResult;
+                    }
+    
+   
+
+    
+      //  do
+       // {   
+               // Draw_Lock();
+               // Draw_FlushFramebuffer();
+               // Draw_Unlock();
+               // u32 buttons = HID_PAD;
+       
+               // if (buttons & BUTTON_DOWN){
+               //memindex = memindex + 1;
+                     //  }
+           
+             //if (buttons & BUTTON_A){((u32*)startAddress)[memindex+10] = 0x000000FF;
+                //}
+          //  Draw_Lock();
+       
+      
+           // value_ = ((u32*)startAddress)[a];
+
+               // do{
+                //nothing
+               // Draw_FlushFramebuffer();
+               // }while (!waitInput() & BUTTON_DOWN);
+                //((u32*)startAddress)[memindex+12] = 0x000000FF;
+        
+       
+       
+                //Draw_ClearFramebuffer();
+        
+       
+    
+        //}while(!(waitInput() & BUTTON_B) && !terminationRequest);
+
+            //Draw_Unlock();//put unmapping process handle stuff here later
+
+   
+    
+    
+     //#undef TRY
+      //return res;
+}
+
+void nothing(void){
+ do{
+     
+ Draw_DrawFormattedString(10, (12)*10, COLOR_GREEN, "Press B to continue");
+
+ } while(! (waitInput() & BUTTON_B));
+    
+}
 
 void MiscellaneousMenu_SwitchBoot3dsxTargetTitle(void)
 {
@@ -237,206 +305,43 @@ void MiscellaneousMenu_SaveSettings(void)
     while(!(waitInput() & BUTTON_B) && !terminationRequest);
 }
 
-void SmileBasicHook(void){
-    
-  static MyThread *petitcommemhookthread = NULL;
-    bool done = false;
-
-    Result res;
-    char buf[65];
-    bool wasEnabled = petithook_enabled;
-    bool cantStart = false;
-
-    if(wasEnabled)
-    {
-        res = PetitMemHook_DoOrUndoPatches();
-        petithook_enabled = false;
-        res = MyThread_Join(petitcommemhookthread, 5 * 1000 * 1000 * 1000LL);
-        svcCloseHandle(petithookStartedEvent);
-
-        if(res != 0)
-            sprintf(buf, "Failed to stop InputRedirection --SmileHook (0x%08x).", (u32)res);
-        else
-            miscellaneousMenu.items[2].title = "Start --SmileHook with Input redirection";
-    }
-    else
-    {
-        Handle dummy;
-        s64 dummyInfo;
-        bool isN3DS = svcGetSystemInfo(&dummyInfo, 0x10001, 0) == 0;
-
-        res = OpenProcessByName("socket", &dummy);
-        cantStart = R_FAILED(res);
-        svcCloseHandle(dummy);
-
-        if(!cantStart && isN3DS)
-        {
-            res = OpenProcessByName("ir", &dummy);
-            cantStart = R_FAILED(res);
-            svcCloseHandle(dummy);
-        }
-    }
-
-
-    Draw_Lock();
-    Draw_ClearFramebuffer();
-    Draw_FlushFramebuffer();
-    Draw_Unlock();
-    
-
-    do
-    {
-        Draw_Lock();
-        Draw_DrawString(10, 10, COLOR_TITLE, "Miscellaneous options menu");
-
-        if(!wasEnabled && cantStart)
-            Draw_DrawString(10, 30, COLOR_WHITE, "Can't start the debugger before the system has fi-\nnished loading.");
-        else if(!wasEnabled)
-        {
-            Draw_DrawString(10, 30, COLOR_WHITE, "Starting InputRedirection with --SmileHook");
-            if(!done)
-            {
-                res = PetitMemHook_DoOrUndoPatches();
-                if(R_SUCCEEDED(res))
-                {
-                    res = svcCreateEvent(&petithookStartedEvent, RESET_STICKY);
-                    if(R_SUCCEEDED(res))
-                    {
-                        petitcommemhookthread = petithookcreatethread();
-                        res = svcWaitSynchronization(petithookStartedEvent, 10 * 1000 * 1000 * 1000LL);
-                        if(res == 0)
-                            res = (Result)petithookstartresult;
-
-                        if(res != 0)
-                            PetitMemHook_DoOrUndoPatches();
-                    }
-                }
-
-                if(res != 0)
-                    sprintf(buf, "Starting InputRedirection with SmileHook failed (but maybe not really");
-                else
-                    miscellaneousMenu.items[2].title = "Stop InputRedirection with --SmileHook";
-
-                done = true;
-            }
-
-            if(res == 0)
-                Draw_DrawString(10, 30, COLOR_WHITE, "Starting InputRedirection With --SmileHook");
-            else
-                Draw_DrawString(10, 30, COLOR_WHITE, buf);
-        }
-        else
-        {
-            if(res == 0)
-                Draw_DrawString(10, 30, COLOR_WHITE, "InputRedirection with --SmileHook stopped successfully.");
-            else
-                Draw_DrawString(10, 30, COLOR_WHITE, buf);
-        }
-
-        Draw_FlushFramebuffer();
-        Draw_Unlock();
-    }while(!(waitInput() & BUTTON_B) && !terminationRequest);
-  
- 
- 
-}
-
 void MiscellaneousMenu_InputRedirection(void)
 {
-    static MyThread *inputRedirectionThread = NULL;
-    bool done = false;
+    
+}
 
-    Result res;
-    char buf[65];
-    bool wasEnabled = inputRedirectionEnabled;
-    bool cantStart = false;
+//Function provided by Sono Chan ^_^ Thank you
+Result syncdma(Handle desth, u32 dest, Handle srch, void* src, u32 size)
+{
+	Handle dmahand = 0;
+	
+	u8 dmaconf[0x18];
+	memset(dmaconf, 0, sizeof(dmaconf));
+	dmaconf[0] = -1; //don't care
 
-    if(wasEnabled)
-    {
-        res = InputRedirection_DoOrUndoPatches();
-        inputRedirectionEnabled = false;
-        res = MyThread_Join(inputRedirectionThread, 5 * 1000 * 1000 * 1000LL);
-        svcCloseHandle(inputRedirectionThreadStartedEvent);
+	Result res = svcFlushProcessDataCache(desth, (void*)dest, size);
+	if (res <0 ) return res;
+	
+	res = svcFlushProcessDataCache(srch, src, size);
+	if (res <0) return res;
+	
+	res = svcStartInterProcessDma(&dmahand, desth, (void*)dest, srch, src, size, dmaconf);
+	if (res < 0) return res;
 
-        if(res != 0)
-            sprintf(buf, "Failed to stop InputRedirection (0x%08x).", (u32)res);
-        else
-            miscellaneousMenu.items[2].title = "Start InputRedirection";
-    }
-    else
-    {
-        Handle dummy;
-        s64 dummyInfo;
-        bool isN3DS = svcGetSystemInfo(&dummyInfo, 0x10001, 0) == 0;
+	u32 stat;
+	while(1)
+	{
+		svcGetDmaState(&stat, dmahand);
+		if(stat & 0xFFF00000)
+			break;
+		else
+			svcSleepThread(1000);
+	}
 
-        res = OpenProcessByName("socket", &dummy);
-        cantStart = R_FAILED(res);
-        svcCloseHandle(dummy);
+	svcStopDma(dmahand);
+	svcCloseHandle(dmahand);
+	
+	svcInvalidateProcessDataCache(desth, (void*)dest, size);
 
-        if(!cantStart && isN3DS)
-        {
-            res = OpenProcessByName("ir", &dummy);
-            cantStart = R_FAILED(res);
-            svcCloseHandle(dummy);
-        }
-    }
-
-    Draw_Lock();
-    Draw_ClearFramebuffer();
-    Draw_FlushFramebuffer();
-    Draw_Unlock();
-
-    do
-    {
-        Draw_Lock();
-        Draw_DrawString(10, 10, COLOR_TITLE, "Miscellaneous options menu");
-
-        if(!wasEnabled && cantStart)
-            Draw_DrawString(10, 30, COLOR_WHITE, "Can't start the debugger before the system has fi-\nnished loading.");
-        else if(!wasEnabled)
-        {
-            Draw_DrawString(10, 30, COLOR_WHITE, "Starting InputRedirection...");
-            if(!done)
-            {
-                res = InputRedirection_DoOrUndoPatches();
-                if(R_SUCCEEDED(res))
-                {
-                    res = svcCreateEvent(&inputRedirectionThreadStartedEvent, RESET_STICKY);
-                    if(R_SUCCEEDED(res))
-                    {
-                        inputRedirectionThread = inputRedirectionCreateThread();
-                        res = svcWaitSynchronization(inputRedirectionThreadStartedEvent, 10 * 1000 * 1000 * 1000LL);
-                        if(res == 0)
-                            res = (Result)inputRedirectionStartResult;
-
-                        if(res != 0)
-                            InputRedirection_DoOrUndoPatches();
-                    }
-                }
-
-                if(res != 0)
-                    sprintf(buf, "Starting InputRedirection... failed (0x%08x).", (u32)res);
-                else
-                    miscellaneousMenu.items[2].title = "Stop InputRedirection";
-
-                done = true;
-            }
-
-            if(res == 0)
-                Draw_DrawString(10, 30, COLOR_WHITE, "Starting InputRedirection... OK.");
-            else
-                Draw_DrawString(10, 30, COLOR_WHITE, buf);
-        }
-        else
-        {
-            if(res == 0)
-                Draw_DrawString(10, 30, COLOR_WHITE, "InputRedirection stopped successfully.");
-            else
-                Draw_DrawString(10, 30, COLOR_WHITE, buf);
-        }
-
-        Draw_FlushFramebuffer();
-        Draw_Unlock();
-    }
-    while(!(waitInput() & BUTTON_B) && !terminationRequest);
+	return 0;
 }
